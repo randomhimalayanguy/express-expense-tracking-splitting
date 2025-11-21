@@ -12,7 +12,7 @@ async function connectOnce() {
   }
 }
 
-export const handler = async (req : Request, res : Response) => {
+export default async function handler(req : Request, res : Response){
   await connectOnce();
   const expressHandler = serverless(app);
   return expressHandler(req, res);
