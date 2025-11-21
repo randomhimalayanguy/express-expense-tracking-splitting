@@ -25,6 +25,7 @@
     "express-validator": "^7.3.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.19.3",
+    "serverless-http": "^4.0.0",
     "typescript": "^5.9.3"
   },
   "devDependencies": {
