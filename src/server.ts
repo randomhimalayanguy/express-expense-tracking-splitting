@@ -36,7 +36,7 @@ class AppError extends Error {
 }
 //-----------------------------------------------------------
 
-// ===================== SCHEMAS & MODELS ===================
+// ---------------------- SCHEMAS & MODELS --------------------
 
 // Enum
 enum PaymentCategory {
@@ -131,7 +131,7 @@ userSchema.pre("save", async function (next) {
   }
 });
 
-// Payment Schema - MINIMAL, only data validation
+// Payment Schema
 const paymentSchema = new Schema<IPayment>(
   {
     listId: {
@@ -176,7 +176,7 @@ const paymentSchema = new Schema<IPayment>(
   { timestamps: true }
 );
 
-// ONLY schema-level validation, NO business logic
+
 paymentSchema.pre("save", async function (next) {
   try {
     if (!this.paymentFor || this.paymentFor.trim().length === 0) {
@@ -227,7 +227,7 @@ const listSchema = new Schema<IList>({
   ],
 });
 
-// ONLY schema-level validation, NO business logic
+
 listSchema.pre("save", async function (next) {
   try {
     if (!this.creator)
@@ -255,9 +255,8 @@ const Users = model<IUser>("User", userSchema);
 const Lists = model<IList>("List", listSchema);
 const Payment = model<IPayment>("Payment", paymentSchema);
 
-// ===================== SERVICE LAYER ====================
-// Business logic GOES HERE, not in routes or pre-hooks
 
+// -------------------- SERVICE LAYER --------------------
 const PaymentService = {
   async createPayment(list: IList, body: any) {
     const { amount, isEquallyPaid, paidBy, category, paymentFor } = body;
@@ -274,7 +273,9 @@ const PaymentService = {
         member,
         amount: splitAmount
       }));
-    } else {
+    } 
+    
+    else {
       // Validate paidBy members are in the list
       const invalidMembers = this.validatePaidMembers(paidBy, list.members);
       if (invalidMembers.length > 0)
@@ -299,10 +300,16 @@ const PaymentService = {
     });
 
     await payment.save();
+
+    list.payments.push(payment._id as Types.ObjectId);
+    list.totalAmount += amount;
+    await list.save();
+
     return payment;
   },
 
   async updatePayment(list: IList, payment: IPayment, updates: any) {
+    const oldAmount = payment.amount;
     const { paidBy, isEquallyPaid } = updates;
 
     // Business logic: validate if paidBy is being updated
@@ -322,12 +329,19 @@ const PaymentService = {
     });
 
     await payment.save();
+
+    const newAmount = payment.amount;
+    const diff = newAmount - oldAmount;
+
+    list.totalAmount = Math.max(list.totalAmount + diff, 0);
+    await list.save();
+
     return payment;
   },
 
-  validatePaidMembers(paidBy: IPaidBy[], listMembers: Types.ObjectId[]) {
-    const paidMembers = paidBy.map(p => p.member.toString());
-    const listMemberIds = listMembers.map(m => m.toString());
+  validatePaidMembers(paidBy: IPaidBy[], listMembers: Types.ObjectId[]) : string[] {
+    const paidMembers : string[] = paidBy.map(p => p.member.toString());
+    const listMemberIds : string[] = listMembers.map(m => m.toString());
 
     return paidMembers.filter(memberId => !listMemberIds.includes(memberId));
   }
@@ -423,7 +437,7 @@ const ListService = {
   }
 };
 
-// ===================== UTILITIES ====================
+// ---------------------- UTILITIES ----------------------
 
 function generateCode(length: number): string {
   const SEQUENCE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz';
@@ -474,7 +488,7 @@ const validationChecker = (req: Request, res: Response, next: NextFunction) => {
   next();
 }
 
-// ===================== VALIDATORS ====================
+// -------------------- VALIDATORS --------------------
 
 const authValidator = [
   body('username')
@@ -592,7 +606,7 @@ const validatePaymentEdit = [
   validationChecker
 ];
 
-// ===================== ROUTES ====================
+// ---------------------- ROUTES ----------------------
 
 app.post('/register', authValidator, async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -723,11 +737,7 @@ app.post('/lists/:listId/payment', validatePayment, authenticate, async (req: Au
   try {
     const { list } = await validateUserAndList(req);
 
-    // Service layer handles ALL business logic
     const payment = await PaymentService.createPayment(list, req.body);
-
-    list.payments.push(payment._id as Types.ObjectId);
-    await list.save();
 
     res.status(201).json({ msg: "Payment created", payment });
   } catch (err) {
@@ -755,7 +765,6 @@ app.patch('/lists/:listId/payment/:paymentId', authenticate, validatePaymentEdit
     if (!payment || !list.payments.includes(payment._id as Types.ObjectId))
       return next(new AppError(`Payment doesn't exist`, 404));
 
-    // Service layer handles validation and update logic
     const updatedPayment = await PaymentService.updatePayment(list, payment, req.body);
 
     res.status(200).json({ msg: "Payment updated", updatedPayment });
