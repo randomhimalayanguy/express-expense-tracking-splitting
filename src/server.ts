@@ -636,7 +636,7 @@ app.post('/login', authValidator, async (req: Request, res: Response, next: Next
     if (!(await bcrypt.compare(password, user.password)))
       return next(new AppError(`Invalid credentials`, 401));
 
-    const token = jwt.sign({ userId: user._id }, SECRET_KEY, { expiresIn: "6h" });
+    const token = jwt.sign({ userId: user._id }, SECRET_KEY, { expiresIn: "7d" });
     const { password: _, ...userWithoutPassword } = user.toObject();
 
     res.status(200).json({ msg: "Logged in", userWithoutPassword, token });
